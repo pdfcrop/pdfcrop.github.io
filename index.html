@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Crop PDF files in your browser with WebAssembly - 100% private, no uploads">
+    <meta name="keywords" content="PDF, crop, trim, margins, WebAssembly, WASM, browser, privacy">
+    <title>pdfcrop - Crop PDFs in Your Browser</title>
+
+    <!-- Tailwind CSS (compiled by Trunk pre-build hook) -->
+    <link rel="stylesheet" href="/app.css">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- PDF.js (from CDN for Safari compatibility) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
+
+    <!-- Favicon (optional - can be added later) -->
+    <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg"> -->
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo/Title -->
+                <div class="flex items-center gap-3">
+                    <svg class="w-8 h-8 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <h1 class="text-2xl font-bold text-gray-900">pdfcrop</h1>
+                </div>
+
+                <!-- Privacy Badge -->
+                <div class="privacy-badge">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    <span>100% Private & Secure</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col">
+        <!-- Upload Section (shown when no PDF loaded) -->
+        <div id="upload-section" class="flex-1 flex items-center justify-center p-8">
+            <div class="max-w-2xl w-full">
+                <div class="card text-center">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4">Crop Your PDF</h2>
+                    <p class="text-lg text-gray-600 mb-8">
+                        All processing happens in your browser. Your PDF never leaves your device.
+                    </p>
+
+                    <!-- Drag & Drop Zone -->
+                    <div id="drop-zone" class="border-2 border-dashed border-gray-300 rounded-xl p-12 transition-all hover:border-primary-500 hover:bg-primary-50/50 cursor-pointer">
+                        <svg class="w-16 h-16 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="text-xl font-medium text-gray-900 mb-2">Drop your PDF here</p>
+                        <p class="text-gray-500 mb-4">or click to browse</p>
+                        <input type="file" id="file-input" accept="application/pdf" class="hidden">
+                        <button id="browse-button" class="btn-primary">
+                            Choose File
+                        </button>
+                    </div>
+
+                    <!-- Privacy Notice -->
+                    <div class="mt-8 p-4 bg-blue-50 border border-blue-200 rounded-lg text-left">
+                        <h3 class="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Your Privacy Matters
+                        </h3>
+                        <p class="text-sm text-blue-800">
+                            This application runs entirely in your browser using WebAssembly.
+                            Your PDF is <strong>never uploaded to any server</strong>.
+                            All processing happens locally on your device, ensuring complete privacy and security.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Application Section (shown when PDF loaded) -->
+        <div id="app-section" class="hidden flex-1 flex">
+            <div class="flex-1 flex flex-col lg:flex-row">
+                <!-- Left Sidebar - Page Thumbnails -->
+                <aside class="w-full lg:w-64 bg-white border-r border-gray-200 overflow-y-auto scrollbar-thin">
+                    <div class="p-4">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-3">Pages</h3>
+                        <div id="thumbnail-container" class="space-y-2">
+                            <!-- Thumbnails will be inserted here -->
+                        </div>
+                    </div>
+                </aside>
+
+                <!-- Center - PDF Viewer -->
+                <div class="flex-1 flex flex-col bg-gray-100">
+                    <!-- Toolbar -->
+                    <div class="bg-white border-b border-gray-200 p-4 flex items-center justify-between gap-4">
+                        <div class="flex items-center gap-2">
+                            <button id="prev-page" class="btn-secondary btn-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                </svg>
+                            </button>
+                            <span id="page-info" class="text-sm text-gray-700 font-medium">
+                                Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                            </span>
+                            <button id="next-page" class="btn-secondary btn-sm">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div class="flex items-center gap-2">
+                            <button id="reset-crop" class="btn-secondary btn-sm">
+                                Reset
+                            </button>
+                            <button id="crop-button" class="btn-primary">
+                                Crop PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas Container -->
+                    <div id="canvas-container" class="flex-1 overflow-auto p-8 flex items-center justify-center">
+                        <div class="relative">
+                            <canvas id="pdf-canvas" class="shadow-lg"></canvas>
+                            <canvas id="overlay-canvas" class="absolute top-0 left-0 cursor-crosshair"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Sidebar - Controls -->
+                <aside class="w-full lg:w-80 bg-white border-l border-gray-200 overflow-y-auto scrollbar-thin">
+                    <div class="p-6 space-y-6">
+                        <!-- Auto-Detect Section -->
+                        <div class="card">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Auto-Detect</h3>
+                            <button id="auto-detect-button" class="btn-secondary w-full">
+                                Detect Crop Region
+                            </button>
+                            <div id="detected-bbox" class="hidden mt-3 p-3 bg-gray-50 rounded-lg text-xs font-mono">
+                                <!-- Detected bbox will be shown here -->
+                            </div>
+                        </div>
+
+                        <!-- Margins Section -->
+                        <div class="card">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Margins</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 mb-1">Uniform (pt)</label>
+                                    <input type="range" id="uniform-margin" min="0" max="50" value="0" class="w-full">
+                                    <div class="text-xs text-gray-600 text-right mt-1">
+                                        <span id="uniform-margin-value">0</span> pt
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Left</label>
+                                        <input type="number" id="margin-left" value="0" class="input text-sm py-1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Right</label>
+                                        <input type="number" id="margin-right" value="0" class="input text-sm py-1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Top</label>
+                                        <input type="number" id="margin-top" value="0" class="input text-sm py-1">
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 mb-1">Bottom</label>
+                                        <input type="number" id="margin-bottom" value="0" class="input text-sm py-1">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Presets Section -->
+                        <div class="card">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Presets</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <button class="btn-secondary btn-sm preset-button" data-preset="tight">Tight (0pt)</button>
+                                <button class="btn-secondary btn-sm preset-button" data-preset="standard">Standard (5pt)</button>
+                                <button class="btn-secondary btn-sm preset-button" data-preset="generous">Generous (10pt)</button>
+                                <button class="btn-secondary btn-sm preset-button" data-preset="custom">Custom</button>
+                            </div>
+                        </div>
+
+                        <!-- Options Section -->
+                        <div class="card">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Options</h3>
+                            <div class="space-y-2">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="shrink-to-content" class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                                    <span class="text-sm text-gray-700">Shrink to content</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="clip-content" class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                                    <span class="text-sm text-gray-700">Clip content</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Page Range Section -->
+                        <div class="card">
+                            <h3 class="text-sm font-semibold text-gray-900 mb-3">Page Range</h3>
+                            <select id="page-range-select" class="input text-sm">
+                                <option value="all">All Pages</option>
+                                <option value="current">Current Page</option>
+                                <option value="custom">Custom Range...</option>
+                            </select>
+                            <div id="custom-range-input" class="hidden mt-2">
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Pages (e.g., 1-5, 8, 10-12)</label>
+                                <input type="text" id="page-range-text" placeholder="1-5, 8, 10-12" class="input text-sm py-1">
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-xl p-8 max-w-sm mx-4">
+                <div class="flex items-center gap-4">
+                    <svg class="animate-spin h-8 w-8 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-gray-900">Processing...</p>
+                        <p id="loading-message" class="text-sm text-gray-600">Please wait</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-4">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <p class="text-center text-sm text-gray-500">
+                Made with <a href="https://github.com/pdfcrop/pdfcrop" class="text-primary-600 hover:text-primary-700 font-medium" target="_blank">pdfcrop</a>
+                • Open Source (MIT/Apache-2.0)
+                • <a href="https://github.com/pdfcrop/pdfcrop.github.io" class="text-primary-600 hover:text-primary-700" target="_blank">Source Code</a>
+            </p>
+        </div>
+    </footer>
+
+    <!-- JavaScript modules (loaded by Trunk) -->
+    <script type="module" src="/js/app.js"></script>
+</body>
+</html>

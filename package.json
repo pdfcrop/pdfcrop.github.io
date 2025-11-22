@@ -1,0 +1,24 @@
+{
+  "name": "pdfcrop-web",
+  "version": "0.1.0",
+  "description": "WebAssembly-powered PDF cropping application",
+  "private": true,
+  "scripts": {
+    "dev": "trunk serve --open",
+    "build": "trunk build --release",
+    "clean": "trunk clean && rm -rf node_modules",
+    "tailwind": "tailwindcss -i ./input.css -o ./dist/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  },
+  "keywords": [
+    "pdf",
+    "crop",
+    "wasm",
+    "webassembly",
+    "rust"
+  ],
+  "author": "pdfcrop contributors",
+  "license": "MIT OR Apache-2.0"
+}

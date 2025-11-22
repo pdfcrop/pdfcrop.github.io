@@ -1,0 +1,39 @@
+[build]
+# Entry point HTML file
+target = "index.html"
+# Output directory for production builds
+dist = "dist"
+# Public URL for assets (important for GitHub Pages deployment)
+# Override with --public-url flag for deployment
+public_url = "/"
+
+# Development server configuration
+[serve]
+# Port for development server
+port = 8080
+# Auto-open browser
+open = false
+# Watch for changes and hot reload
+watch = true
+
+# Pre-build hook to compile Tailwind CSS
+[[hooks]]
+stage = "pre_build"
+command = "npx"
+command_arguments = [
+    "tailwindcss",
+    "-i", "./input.css",
+    "-o", "./dist/app.css",
+    "--minify"
+]
+
+# Build configuration
+[clean]
+# Directories to clean on `trunk clean`
+dist = "dist"
+cargo = "target"
+
+# Watch configuration
+[watch]
+# Ignore these paths when watching for changes
+ignore = ["./target", "./dist", "./node_modules"]

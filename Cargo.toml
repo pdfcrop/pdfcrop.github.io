@@ -1,0 +1,31 @@
+[package]
+name = "pdfcrop-web"
+version = "0.1.0"
+edition = "2021"
+authors = ["pdfcrop contributors"]
+description = "WebAssembly PDF cropping application"
+repository = "https://github.com/pdfcrop/pdfcrop.github.io"
+license = "MIT OR Apache-2.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Main pdfcrop library (parent directory)
+pdfcrop = { path = "../..", default-features = false, features = ["std"] }
+
+# WASM dependencies are inherited from pdfcrop when building for wasm32
+# (wasm-bindgen, js-sys, web-sys, etc.)
+
+[profile.release]
+# Optimize for size in WASM builds
+opt-level = "z"  # Optimize for size
+lto = true       # Enable Link Time Optimization
+codegen-units = 1  # Better optimization, slower compile
+
+[profile.release.package."*"]
+opt-level = "z"
+
+# WASM-specific optimizations
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Oz", "--enable-mutable-globals"]
