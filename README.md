@@ -76,6 +76,20 @@ npm run preview
 npm run format
 ```
 
+## Deployment
+
+The web app is automatically deployed to GitHub Pages on every push to the `main` branch via GitHub Actions.
+
+The deployment workflow:
+1. Checks out the main `pdfcrop` repository
+2. Builds the WASM module using `wasm-pack`
+3. Builds the web app with TypeScript and Vite
+4. Deploys the `dist` folder to GitHub Pages
+
+**Live Site**: [https://pdfcrop.github.io](https://pdfcrop.github.io)
+
+To manually trigger a deployment, use the "Run workflow" button in the Actions tab.
+
 ## License
 
 MIT OR Apache-2.0
