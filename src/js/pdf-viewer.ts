@@ -108,7 +108,7 @@ export class PDFViewer {
             return this.totalPages;
         } catch (error) {
             console.error('Error loading PDF:', error);
-            throw new Error('Failed to load PDF: ' + error.message);
+            throw new Error('Failed to load PDF: ' + (error instanceof Error ? error.message : String(error)));
         }
     }
 
@@ -189,7 +189,7 @@ export class PDFViewer {
             return this.currentViewport;
         } catch (error) {
             console.error('Error rendering page:', error);
-            throw new Error('Failed to render page: ' + error.message);
+            throw new Error('Failed to render page: ' + (error instanceof Error ? error.message : String(error)));
         }
     }
 
@@ -244,6 +244,9 @@ export class PDFViewer {
 
         // Get page dimensions at scale 1.0
         const pageDims = this.getPageDimensions();
+        if (!pageDims) {
+            return { x: 0, y: 0 };
+        }
 
         // Convert canvas coords to PDF points
         const pdfX = (canvasX / this.scale);
@@ -264,6 +267,9 @@ export class PDFViewer {
         }
 
         const pageDims = this.getPageDimensions();
+        if (!pageDims) {
+            return null;
+        }
 
         // Convert PDF points to canvas coords
         const canvasX = pdfX * this.scale;
@@ -284,6 +290,10 @@ export class PDFViewer {
         const topLeft = this.canvasToPDF(rect.x, rect.y);
         const bottomRight = this.canvasToPDF(rect.x + rect.width, rect.y + rect.height);
 
+        if (!topLeft || !bottomRight) {
+            return { left: 0, bottom: 0, right: 0, top: 0 };
+        }
+
         return {
             left: topLeft.x,
             bottom: bottomRight.y,
@@ -300,6 +310,10 @@ export class PDFViewer {
     pdfBboxToCanvasRect(bbox: PDFBBox): CanvasRect {
         const topLeft = this.pdfToCanvas(bbox.left, bbox.top);
         const bottomRight = this.pdfToCanvas(bbox.right, bbox.bottom);
+
+        if (!topLeft || !bottomRight) {
+            return { x: 0, y: 0, width: 0, height: 0 };
+        }
 
         return {
             x: topLeft.x,

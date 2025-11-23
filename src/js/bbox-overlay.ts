@@ -426,7 +426,7 @@ export class BBoxOverlay {
  * Create and export a bbox overlay instance
  */
 export function createBBoxOverlay(overlayCanvasId: string, pdfViewer: PDFViewer, options: BBoxOverlayOptions = {}): BBoxOverlay {
-    const overlayCanvas = document.getElementById(overlayCanvasId);
+    const overlayCanvas = document.getElementById(overlayCanvasId) as HTMLCanvasElement;
     if (!overlayCanvas) {
         throw new Error(`Canvas element with id "${overlayCanvasId}" not found`);
     }

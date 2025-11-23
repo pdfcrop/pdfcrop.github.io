@@ -8,12 +8,8 @@ import '../../input.css';
 
 import init, {
     cropPdf,
-    getPageCount,
     detectBbox,
-    getPageDimensions,
-    WasmCropOptions,
-    WasmBoundingBox,
-    InitOutput
+    WasmCropOptions
 } from '../../pkg/pdfcrop';
 
 import { PDFViewer, createPDFViewer } from './pdf-viewer';
@@ -28,7 +24,6 @@ interface PDFBBox {
 }
 
 // Global state
-let wasmModule: InitOutput | null = null;
 let pdfViewer: PDFViewer | null = null;
 let bboxOverlay: BBoxOverlay | null = null;
 let currentPDFData: Uint8Array | null = null;  // Store PDF data as Uint8Array
@@ -46,7 +41,7 @@ async function initialize() {
 
     try {
         // Initialize WASM module
-        wasmModule = await init();
+        await init();
         console.log('WASM module initialized successfully');
 
         // Initialize PDF viewer
@@ -369,11 +364,15 @@ async function handleFileUpload(file: File): Promise<void> {
         const pdfCopy = currentPDFData.slice();
 
         // Load PDF into viewer
+        if (!pdfViewer) {
+            throw new Error('PDF viewer not initialized');
+        }
         totalPages = await pdfViewer.loadPDF(pdfCopy);
         currentPage = 1;
         console.log('PDF loaded. Total pages:', totalPages);
 
         // Set up PDF viewer callbacks
+        if (!pdfViewer) return;
         pdfViewer.onPageChange = (pageNum, total) => {
             currentPage = pageNum;
             const currentPageEl = document.getElementById('current-page') as HTMLInputElement;
@@ -508,6 +507,8 @@ function autoEnableClipMode(): void {
  */
 function updateBboxDisplay(bbox: PDFBBox | null): void {
     const bboxDisplay = document.getElementById('detected-bbox');
+    if (!bboxDisplay) return;
+
     if (!bbox) {
         bboxDisplay.classList.add('hidden');
         return;
@@ -569,7 +570,7 @@ async function generateThumbnails() {
     for (let i = 1; i <= totalPages; i++) {
         const thumbnailDiv = document.createElement('div');
         thumbnailDiv.className = 'thumbnail-item cursor-pointer p-2 rounded hover:bg-gray-100 transition-all duration-200';
-        thumbnailDiv.dataset.page = i;
+        thumbnailDiv.dataset.page = i.toString();
 
         const canvas = document.createElement('canvas');
         // Don't use w-full since we set explicit dimensions for high-DPI rendering
@@ -592,7 +593,9 @@ async function generateThumbnails() {
         // Pass 0 to use the actual rendered width of the canvas (which has width: 100%)
         await new Promise(resolve => requestAnimationFrame(resolve));
         try {
-            await pdfViewer.renderThumbnail(i, canvas, 0);
+            if (pdfViewer) {
+                await pdfViewer.renderThumbnail(i, canvas, 0);
+            }
         } catch (error) {
             console.error(`Error rendering thumbnail for page ${i}:`, error);
         }
@@ -775,7 +778,7 @@ function getPageRange(): number[] | null {
  * Example: "1-5, 8, 10-12" → [0, 1, 2, 3, 4, 7, 9, 10, 11]
  */
 function parsePageRange(text: string): number[] {
-    const pages = new Set();
+    const pages = new Set<number>();
     const parts = text.split(',').map(s => s.trim());
 
     for (const part of parts) {
@@ -799,7 +802,8 @@ function parsePageRange(text: string): number[] {
  * Download PDF file
  */
 function downloadPDF(uint8Array: Uint8Array, filename: string): void {
-    const blob = new Blob([uint8Array], { type: 'application/pdf' });
+    // Slice to ensure we have an ArrayBuffer-backed Uint8Array (not SharedArrayBuffer)
+    const blob = new Blob([uint8Array.slice()], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -814,15 +818,18 @@ function downloadPDF(uint8Array: Uint8Array, filename: string): void {
  * Show loading overlay
  */
 function showLoading(message: string = 'Processing...'): void {
-    document.getElementById('loading-message').textContent = message;
-    document.getElementById('loading-overlay').classList.remove('hidden');
+    const loadingMessage = document.getElementById('loading-message');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingMessage) loadingMessage.textContent = message;
+    if (loadingOverlay) loadingOverlay.classList.remove('hidden');
 }
 
 /**
  * Hide loading overlay
  */
 function hideLoading(): void {
-    document.getElementById('loading-overlay').classList.add('hidden');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    if (loadingOverlay) loadingOverlay.classList.add('hidden');
 }
 
 // Initialize application when DOM is ready
