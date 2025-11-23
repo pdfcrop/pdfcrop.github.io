@@ -2,31 +2,38 @@
 
 A WebAssembly-powered PDF cropping tool that runs entirely in your browser. No server uploads, 100% private and secure.
 
+> **Note**: This web app lives in the `examples/pdfcrop.github.io/` directory of the main [pdfcrop](https://github.com/pdfcrop/pdfcrop) Rust project. The build instructions assume this directory structure.
+
 ## Features
 
 - 🔒 **100% Private** - All processing happens in your browser via WebAssembly
-- 📄 **PDF Viewer** - View and navigate your PDF with PDF.js
-- ✂️ **Auto-detect** - Automatically detect content boundaries
+- 📄 **PDF Viewer** - View and navigate PDFs with zoom and page thumbnails
+- ✂️ **Auto-detect** - Automatically detect content boundaries using rendering
 - 🎯 **Manual Selection** - Draw custom crop regions per page
-- 📏 **Flexible Margins** - Adjust margins with precision
-- 📑 **Page Range** - Crop specific pages or ranges
-- ⚡ **Fast** - Parallel processing powered by Rust + WASM
-- 🌐 **Browser Support** - Works on Chrome, Firefox, Safari, Edge
+- 📏 **Flexible Margins** - Adjust margins (uniform or per-side)
+- 📑 **Page Range** - Crop all, odd, even, or custom page ranges
+- ⚡ **Fast** - Powered by Rust + WASM
+- 🌐 **Works Offline** - No internet required after initial load
 
 ## Quick Start
 
 ```bash
+# Build WASM (from parent directory)
+cd ../..
+cargo install wasm-pack
+wasm-pack build --target web --release --out-dir examples/pdfcrop.github.io/pkg
+
+# Return to web app directory
+cd examples/pdfcrop.github.io
+
 # Install dependencies
 npm install
 
-# Install Trunk (WASM build tool)
-cargo install trunk
-
 # Run development server
-trunk serve
+npm run dev
 
 # Build for production
-trunk build --release
+npm run build
 ```
 
 Visit `http://localhost:8080` to use the app.
@@ -34,17 +41,17 @@ Visit `http://localhost:8080` to use the app.
 ## How It Works
 
 1. **Upload PDF** - Drag and drop or select a PDF file
-2. **Review Auto-detect** - See automatically detected crop regions
-3. **Adjust** - Fine-tune margins or draw custom regions
+2. **Auto-detect** - Automatically detects content boundaries
+3. **Adjust** - Fine-tune margins or draw custom crop regions
 4. **Select Pages** - Choose which pages to crop
 5. **Download** - Get your cropped PDF instantly
 
 ## Architecture
 
-- **Frontend**: Vanilla JS + Tailwind CSS
-- **PDF Rendering**: PDF.js (Mozilla)
-- **WASM Backend**: Rust `pdfcrop` library
-- **Build Tool**: Trunk
+- **Frontend**: TypeScript + Tailwind CSS
+- **PDF Rendering**: PDF.js
+- **PDF Processing**: Rust `pdfcrop` library compiled to WASM
+- **Build Tool**: Vite
 
 ## Privacy & Security
 
@@ -53,37 +60,21 @@ Your PDF **never leaves your device**. All processing happens locally in your br
 ## Development
 
 ```bash
-# Watch mode with hot reload
-trunk serve --open
+# Development server with hot reload
+npm run dev
 
-# Build optimized WASM
-trunk build --release --public-url /pdfcrop/
+# Rebuild WASM (after Rust changes)
+cd ../.. && wasm-pack build --target web --release --out-dir examples/pdfcrop.github.io/pkg && cd -
 
-# Run tests
-cargo test
+# Build for production
+npm run build
 
-# Check WASM compatibility
-cargo build --target wasm32-unknown-unknown --lib --no-default-features
+# Preview production build
+npm run preview
+
+# Format code
+npm run format
 ```
-
-## Deployment
-
-This app is deployed to GitHub Pages at [pdfcrop.github.io](https://pdfcrop.github.io).
-
-### Deploy Command
-```bash
-trunk build --release --public-url /pdfcrop/
-# Push dist/ to gh-pages branch
-```
-
-## Browser Compatibility
-
-| Browser | Support | Notes |
-|---------|---------|-------|
-| Chrome | ✅ Full | Including parallel processing |
-| Firefox | ✅ Full | Including parallel processing |
-| Safari | ✅ Full | Sequential processing (parallel optional) |
-| Edge | ✅ Full | Including parallel processing |
 
 ## License
 

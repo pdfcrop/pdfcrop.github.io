@@ -131,9 +131,11 @@ export class PDFViewer {
 
             // Calculate viewport to fit canvas container (only if not manually zoomed)
             if (!this.manualScale) {
-                const parentEl = this.canvas.parentElement;
-                const containerWidth = (parentEl?.clientWidth || 800) - 64; // padding
-                const containerHeight = (parentEl?.clientHeight || 600) - 64;
+                // Get the actual container element (canvas-container), not just the immediate parent
+                const containerEl = document.getElementById('canvas-container');
+                // Account for container padding (p-6 = 24px * 2 = 48px) plus some buffer for shadows
+                const containerWidth = (containerEl?.clientWidth || 800) - 60;
+                const containerHeight = (containerEl?.clientHeight || 600) - 60;
 
                 // Get default viewport (scale 1.0)
                 const defaultViewport = this.currentPageObject.getViewport({ scale: 1.0 });
@@ -147,11 +149,24 @@ export class PDFViewer {
             // Get viewport with calculated scale
             this.currentViewport = this.currentPageObject.getViewport({ scale: this.scale });
 
-            // Set canvas dimensions
-            this.canvas.width = this.currentViewport.width;
-            this.canvas.height = this.currentViewport.height;
-            this.overlayCanvas.width = this.currentViewport.width;
-            this.overlayCanvas.height = this.currentViewport.height;
+            // Account for device pixel ratio for high-DPI displays (Retina, etc.)
+            const outputScale = window.devicePixelRatio || 1;
+
+            // Set canvas internal resolution (drawing buffer size)
+            this.canvas.width = Math.floor(this.currentViewport.width * outputScale);
+            this.canvas.height = Math.floor(this.currentViewport.height * outputScale);
+            this.overlayCanvas.width = Math.floor(this.currentViewport.width * outputScale);
+            this.overlayCanvas.height = Math.floor(this.currentViewport.height * outputScale);
+
+            // Set canvas CSS size (logical size)
+            this.canvas.style.width = Math.floor(this.currentViewport.width) + 'px';
+            this.canvas.style.height = Math.floor(this.currentViewport.height) + 'px';
+            this.overlayCanvas.style.width = Math.floor(this.currentViewport.width) + 'px';
+            this.overlayCanvas.style.height = Math.floor(this.currentViewport.height) + 'px';
+
+            // Scale the rendering context to match the higher resolution
+            this.ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+            this.overlayCtx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
 
             // Clear canvas
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -296,6 +311,9 @@ export class PDFViewer {
 
     /**
      * Render a thumbnail for a specific page
+     * @param pageNum - Page number (1-indexed)
+     * @param thumbnailCanvas - Canvas element to render into
+     * @param maxWidth - Maximum width in CSS pixels (not accounting for DPI) - can be 0 to use actual rendered width
      */
     async renderThumbnail(pageNum: number, thumbnailCanvas: HTMLCanvasElement, maxWidth: number = 150): Promise<void> {
         if (!this.pdfDocument) {
@@ -306,16 +324,39 @@ export class PDFViewer {
             const page = await this.pdfDocument.getPage(pageNum);
             const viewport = page.getViewport({ scale: 1.0 });
 
+            // If maxWidth is 0, use the actual rendered width of the canvas element
+            let targetWidth = maxWidth;
+            if (maxWidth === 0) {
+                const computedWidth = thumbnailCanvas.getBoundingClientRect().width;
+                targetWidth = computedWidth > 0 ? computedWidth : 150;
+            }
+
             // Calculate scale to fit thumbnail width
-            const scale = maxWidth / viewport.width;
+            const scale = targetWidth / viewport.width;
             const scaledViewport = page.getViewport({ scale });
 
-            // Set canvas size
-            thumbnailCanvas.width = scaledViewport.width;
-            thumbnailCanvas.height = scaledViewport.height;
+            // Account for device pixel ratio for crisp thumbnails on high-DPI displays
+            const outputScale = window.devicePixelRatio || 1;
+
+            // Calculate logical size (CSS size in pixels) - preserving aspect ratio
+            const logicalWidth = Math.floor(scaledViewport.width);
+            const logicalHeight = Math.floor(scaledViewport.height);
+
+            // Set canvas internal resolution (drawing buffer size) with DPI scaling
+            thumbnailCanvas.width = Math.floor(logicalWidth * outputScale);
+            thumbnailCanvas.height = Math.floor(logicalHeight * outputScale);
+
+            // Set CSS size explicitly for both dimensions to maintain aspect ratio
+            thumbnailCanvas.style.width = logicalWidth + 'px';
+            thumbnailCanvas.style.height = logicalHeight + 'px';
 
             // Render
             const ctx = thumbnailCanvas.getContext('2d');
+            if (!ctx) return;
+
+            // Scale the rendering context to match the higher resolution
+            ctx.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+
             const renderContext = {
                 canvasContext: ctx,
                 viewport: scaledViewport
@@ -370,6 +411,13 @@ export class PDFViewer {
     }
 
     /**
+     * Check if scale was manually set (not auto-fit)
+     */
+    isManuallyScaled(): boolean {
+        return this.manualScale;
+    }
+
+    /**
      * Set zoom scale and re-render
      */
     async setScale(newScale: number): Promise<void> {
@@ -398,7 +446,8 @@ export class PDFViewer {
     async fitToWidth(): Promise<void> {
         if (!this.currentPageObject) return;
 
-        const containerWidth = this.canvas.parentElement!.clientWidth - 64;
+        const containerEl = document.getElementById('canvas-container');
+        const containerWidth = (containerEl?.clientWidth || 800) - 60;
         const defaultViewport = this.currentPageObject.getViewport({ scale: 1.0 });
         const newScale = containerWidth / defaultViewport.width;
 

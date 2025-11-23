@@ -153,15 +153,26 @@ function setupEventListeners() {
         });
     }
 
-    // Preset buttons
-    document.querySelectorAll('.preset-button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const preset = (btn as HTMLButtonElement).dataset.preset;
-            if (preset) {
-                applyPreset(preset);
+    // Page number input - allow direct navigation
+    const currentPageInput = document.getElementById('current-page') as HTMLInputElement;
+    if (currentPageInput) {
+        currentPageInput.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                const pageNum = parseInt(currentPageInput.value);
+                if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= totalPages && pdfViewer) {
+                    await pdfViewer.goToPage(pageNum);
+                } else {
+                    // Reset to current page if invalid
+                    currentPageInput.value = currentPage.toString();
+                }
             }
         });
-    });
+
+        // Reset to current page if user clicks away without pressing Enter
+        currentPageInput.addEventListener('blur', () => {
+            currentPageInput.value = currentPage.toString();
+        });
+    }
 
     // Page range select
     const pageRangeSelect = document.getElementById('page-range-select') as HTMLSelectElement;
@@ -257,6 +268,74 @@ function setupEventListeners() {
             }
         });
     }
+
+    // Add touchpad/wheel zoom support for PDF canvas area
+    const canvasContainer = document.getElementById('canvas-container');
+    if (canvasContainer) {
+        canvasContainer.addEventListener('wheel', async (e) => {
+            // Check if Ctrl (or Cmd on Mac) is pressed, or if this is a pinch gesture
+            if (e.ctrlKey || e.metaKey) {
+                e.preventDefault(); // Prevent page zoom
+
+                if (!pdfViewer) return;
+
+                // Get current scale
+                const currentScale = pdfViewer.getScale();
+
+                // Determine zoom direction and factor
+                // Negative deltaY means zoom in, positive means zoom out
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                const newScale = currentScale * zoomFactor;
+
+                // Apply new scale
+                await pdfViewer.setScale(newScale);
+                updateZoomLevel();
+            }
+        }, { passive: false }); // passive: false allows preventDefault
+    }
+
+    // Handle window resize - refit the page if not manually zoomed
+    let resizeTimeout: number;
+    window.addEventListener('resize', () => {
+        // Debounce resize events
+        clearTimeout(resizeTimeout);
+        resizeTimeout = window.setTimeout(async () => {
+            if (pdfViewer && currentPDFData) {
+                // Check if we're in auto-fit mode (not manually zoomed)
+                if (!pdfViewer.isManuallyScaled()) {
+                    await pdfViewer.fitToPage();
+                    updateZoomLevel();
+                }
+            }
+        }, 250);
+    });
+
+    // Handle device pixel ratio changes (e.g., moving window between monitors)
+    // This ensures thumbnails and main canvas stay crisp on different DPI displays
+    let currentDPR = window.devicePixelRatio;
+    const updateDPR = () => {
+        const newDPR = window.devicePixelRatio;
+        if (newDPR !== currentDPR && pdfViewer && currentPDFData) {
+            currentDPR = newDPR;
+            console.log('Device pixel ratio changed to', newDPR, '- re-rendering');
+
+            // Re-render current page
+            pdfViewer.renderPage(currentPage).catch(err => {
+                console.error('Error re-rendering page after DPI change:', err);
+            });
+
+            // Re-generate thumbnails for crisp rendering
+            generateThumbnails().catch(err => {
+                console.error('Error re-generating thumbnails after DPI change:', err);
+            });
+        }
+
+        // Re-attach listener for next DPI change
+        matchMedia(`(resolution: ${currentDPR}dppx)`).addEventListener('change', updateDPR, { once: true });
+    };
+
+    // Initial listener
+    matchMedia(`(resolution: ${currentDPR}dppx)`).addEventListener('change', updateDPR, { once: true });
 }
 
 /**
@@ -297,9 +376,9 @@ async function handleFileUpload(file: File): Promise<void> {
         // Set up PDF viewer callbacks
         pdfViewer.onPageChange = (pageNum, total) => {
             currentPage = pageNum;
-            const currentPageEl = document.getElementById('current-page');
+            const currentPageEl = document.getElementById('current-page') as HTMLInputElement;
             if (currentPageEl) {
-                currentPageEl.textContent = pageNum.toString();
+                currentPageEl.value = pageNum.toString();
             }
 
             // Update navigation buttons
@@ -311,15 +390,21 @@ async function handleFileUpload(file: File): Promise<void> {
             // Update zoom level display
             updateZoomLevel();
 
+            // Update thumbnail selection highlighting
+            updateThumbnailSelection(pageNum);
+
             // Show bbox if exists for this page
             renderBboxOverlay();
         };
 
         // Update UI
         const totalPagesEl = document.getElementById('total-pages');
-        const currentPageEl = document.getElementById('current-page');
+        const currentPageEl = document.getElementById('current-page') as HTMLInputElement;
         if (totalPagesEl) totalPagesEl.textContent = totalPages.toString();
-        if (currentPageEl) currentPageEl.textContent = currentPage.toString();
+        if (currentPageEl) {
+            currentPageEl.value = currentPage.toString();
+            currentPageEl.max = totalPages.toString();
+        }
 
         // Update navigation buttons
         const prevButton = document.getElementById('prev-page') as HTMLButtonElement;
@@ -330,14 +415,23 @@ async function handleFileUpload(file: File): Promise<void> {
         // Generate thumbnails for all pages
         await generateThumbnails();
 
+        // Highlight first page thumbnail
+        updateThumbnailSelection(1);
+
         // Show application section
         const uploadSection = document.getElementById('upload-section');
         const appSection = document.getElementById('app-section');
         if (uploadSection) uploadSection.classList.add('hidden');
         if (appSection) appSection.classList.remove('hidden');
 
-        // Update zoom level display
-        updateZoomLevel();
+        // Now that the container is visible, ensure the PDF is properly fitted to the page
+        // Use setTimeout to ensure the layout has been calculated
+        setTimeout(async () => {
+            if (pdfViewer) {
+                await pdfViewer.fitToPage();
+                updateZoomLevel();
+            }
+        }, 0);
 
         hideLoading();
     } catch (error) {
@@ -433,6 +527,37 @@ function updateBboxDisplay(bbox: PDFBBox | null): void {
 }
 
 /**
+ * Update thumbnail selection highlighting
+ */
+function updateThumbnailSelection(pageNum: number): void {
+    // Remove highlighting from all thumbnails
+    document.querySelectorAll('.thumbnail-item canvas').forEach(canvas => {
+        canvas.classList.remove('shadow-lg', 'ring-2', 'ring-primary-500', 'border-primary-500');
+        canvas.classList.add('border-gray-200');
+    });
+
+    // Remove bold from all page labels
+    document.querySelectorAll('.thumbnail-item div[data-page]').forEach(label => {
+        label.classList.remove('font-bold', 'text-gray-900');
+        label.classList.add('text-gray-600');
+    });
+
+    // Add highlighting to selected thumbnail canvas
+    const selectedCanvas = document.querySelector(`.thumbnail-item canvas[data-page="${pageNum}"]`) as HTMLCanvasElement;
+    if (selectedCanvas) {
+        selectedCanvas.classList.add('shadow-lg', 'ring-2', 'ring-primary-500', 'border-primary-500');
+        selectedCanvas.classList.remove('border-gray-200');
+    }
+
+    // Bold the selected page label
+    const selectedLabel = document.querySelector(`.thumbnail-item div[data-page="${pageNum}"]`) as HTMLDivElement;
+    if (selectedLabel) {
+        selectedLabel.classList.add('font-bold', 'text-gray-900');
+        selectedLabel.classList.remove('text-gray-600');
+    }
+}
+
+/**
  * Generate thumbnails for all pages
  */
 async function generateThumbnails() {
@@ -443,46 +568,41 @@ async function generateThumbnails() {
 
     for (let i = 1; i <= totalPages; i++) {
         const thumbnailDiv = document.createElement('div');
-        thumbnailDiv.className = 'thumbnail-item cursor-pointer p-2 rounded hover:bg-gray-100 transition-colors';
+        thumbnailDiv.className = 'thumbnail-item cursor-pointer p-2 rounded hover:bg-gray-100 transition-all duration-200';
         thumbnailDiv.dataset.page = i;
 
         const canvas = document.createElement('canvas');
-        canvas.className = 'w-full border border-gray-200 rounded mb-1';
+        // Don't use w-full since we set explicit dimensions for high-DPI rendering
+        canvas.className = 'border border-gray-200 rounded mb-1 transition-all duration-200';
+        canvas.style.display = 'block';
+        canvas.style.width = '100%';
+        canvas.style.height = 'auto';
+        canvas.dataset.page = i.toString();
 
         const pageLabel = document.createElement('div');
-        pageLabel.className = 'text-xs text-center text-gray-600';
+        pageLabel.className = 'text-xs text-center text-gray-600 transition-all duration-200';
         pageLabel.textContent = `Page ${i}`;
+        pageLabel.dataset.page = i.toString();
 
         thumbnailDiv.appendChild(canvas);
         thumbnailDiv.appendChild(pageLabel);
         thumbnailContainer.appendChild(thumbnailDiv);
 
-        // Render thumbnail
+        // Render thumbnail after a frame to ensure layout is calculated
+        // Pass 0 to use the actual rendered width of the canvas (which has width: 100%)
+        await new Promise(resolve => requestAnimationFrame(resolve));
         try {
-            await pdfViewer.renderThumbnail(i, canvas, 120);
+            await pdfViewer.renderThumbnail(i, canvas, 0);
         } catch (error) {
             console.error(`Error rendering thumbnail for page ${i}:`, error);
         }
 
         // Click handler
         thumbnailDiv.addEventListener('click', async () => {
-            // Remove active class from all thumbnails
-            document.querySelectorAll('.thumbnail-item').forEach(t => {
-                t.classList.remove('bg-primary-100', 'border-primary-500');
-            });
-
-            // Add active class to clicked thumbnail
-            thumbnailDiv.classList.add('bg-primary-100', 'border-primary-500');
-
             // Render the page
             currentPage = i;
             await renderPage(i);
         });
-
-        // Highlight first page initially
-        if (i === 1) {
-            thumbnailDiv.classList.add('bg-primary-100', 'border-primary-500');
-        }
     }
 }
 
@@ -673,36 +793,6 @@ function parsePageRange(text: string): number[] {
     }
 
     return Array.from(pages).sort((a, b) => a - b);
-}
-
-/**
- * Apply preset margins
- */
-function applyPreset(preset: string): void {
-    const presets: Record<string, number | null> = {
-        tight: 0,
-        standard: 5,
-        generous: 10,
-        custom: null
-    };
-
-    const value = presets[preset];
-    if (value !== null && value !== undefined) {
-        const uniformMargin = document.getElementById('uniform-margin') as HTMLInputElement;
-        const uniformMarginValue = document.getElementById('uniform-margin-value') as HTMLSpanElement;
-        const marginLeft = document.getElementById('margin-left') as HTMLInputElement;
-        const marginRight = document.getElementById('margin-right') as HTMLInputElement;
-        const marginTop = document.getElementById('margin-top') as HTMLInputElement;
-        const marginBottom = document.getElementById('margin-bottom') as HTMLInputElement;
-
-        const valueStr = value.toString();
-        if (uniformMargin) uniformMargin.value = valueStr;
-        if (uniformMarginValue) uniformMarginValue.textContent = valueStr;
-        if (marginLeft) marginLeft.value = valueStr;
-        if (marginRight) marginRight.value = valueStr;
-        if (marginTop) marginTop.value = valueStr;
-        if (marginBottom) marginBottom.value = valueStr;
-    }
 }
 
 /**

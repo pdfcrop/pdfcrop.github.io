@@ -27,6 +27,7 @@ interface BBoxOverlayOptions {
 
 export class BBoxOverlay {
     private overlayCanvas: HTMLCanvasElement;
+    private pdfCanvas: HTMLCanvasElement;  // For capturing events
     private pdfViewer: PDFViewer;
     private ctx: CanvasRenderingContext2D;
 
@@ -60,6 +61,13 @@ export class BBoxOverlay {
         this.overlayCanvas = overlayCanvas;
         this.pdfViewer = pdfViewer;
 
+        // Get the PDF canvas (sibling of overlay canvas)
+        const pdfCanvas = document.getElementById('pdf-canvas') as HTMLCanvasElement;
+        if (!pdfCanvas) {
+            throw new Error('PDF canvas not found');
+        }
+        this.pdfCanvas = pdfCanvas;
+
         const ctx = overlayCanvas.getContext('2d');
         if (!ctx) {
             throw new Error('Failed to get overlay canvas 2D context');
@@ -92,40 +100,39 @@ export class BBoxOverlay {
      * Enable bbox selection
      */
     enable(): void {
-        // Mouse events
-        this.overlayCanvas.addEventListener('mousedown', this.handleMouseDown);
-        this.overlayCanvas.addEventListener('mousemove', this.handleMouseMove);
-        this.overlayCanvas.addEventListener('mouseup', this.handleMouseUp);
+        // Only attach mousedown to PDF canvas
+        // Move and up events will be attached to document when drawing starts
+        this.pdfCanvas.addEventListener('mousedown', this.handleMouseDown);
 
         // Touch events
-        this.overlayCanvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
-        this.overlayCanvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-        this.overlayCanvas.addEventListener('touchend', this.handleTouchEnd);
+        this.pdfCanvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
 
-        // Change cursor
-        this.overlayCanvas.style.cursor = 'crosshair';
+        // Change cursor on PDF canvas
+        this.pdfCanvas.style.cursor = 'crosshair';
     }
 
     /**
      * Disable bbox selection
      */
     disable(): void {
-        // Remove mouse events
-        this.overlayCanvas.removeEventListener('mousedown', this.handleMouseDown);
-        this.overlayCanvas.removeEventListener('mousemove', this.handleMouseMove);
-        this.overlayCanvas.removeEventListener('mouseup', this.handleMouseUp);
+        // Remove mouse events from PDF canvas
+        this.pdfCanvas.removeEventListener('mousedown', this.handleMouseDown);
+
+        // Remove document-level events (in case drawing is in progress)
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
 
         // Remove touch events
-        this.overlayCanvas.removeEventListener('touchstart', this.handleTouchStart);
-        this.overlayCanvas.removeEventListener('touchmove', this.handleTouchMove);
-        this.overlayCanvas.removeEventListener('touchend', this.handleTouchEnd);
+        this.pdfCanvas.removeEventListener('touchstart', this.handleTouchStart);
+        document.removeEventListener('touchmove', this.handleTouchMove);
+        document.removeEventListener('touchend', this.handleTouchEnd);
 
         // Reset cursor
-        this.overlayCanvas.style.cursor = 'default';
+        this.pdfCanvas.style.cursor = 'default';
     }
 
     /**
-     * Get mouse position relative to canvas
+     * Get mouse position relative to canvas (unclamped - allows free movement)
      */
     getCanvasCoordinates(event: MouseEvent): { x: number; y: number } {
         const rect = this.overlayCanvas.getBoundingClientRect();
@@ -136,7 +143,7 @@ export class BBoxOverlay {
     }
 
     /**
-     * Get touch position relative to canvas
+     * Get touch position relative to canvas (unclamped - allows free movement)
      */
     getTouchCoordinates(event: TouchEvent): { x: number; y: number } {
         const rect = this.overlayCanvas.getBoundingClientRect();
@@ -215,6 +222,12 @@ export class BBoxOverlay {
         this.currentX = x;
         this.currentY = y;
 
+        // Attach document-level events to track mouse even when outside canvas
+        document.addEventListener('mousemove', this.handleMouseMove);
+        document.addEventListener('mouseup', this.handleMouseUp);
+        document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+        document.addEventListener('touchend', this.handleTouchEnd);
+
         // Clear previous selection
         this.clear();
     }
@@ -245,6 +258,12 @@ export class BBoxOverlay {
         this.currentY = y;
         this.isDrawing = false;
 
+        // Remove document-level events
+        document.removeEventListener('mousemove', this.handleMouseMove);
+        document.removeEventListener('mouseup', this.handleMouseUp);
+        document.removeEventListener('touchmove', this.handleTouchMove);
+        document.removeEventListener('touchend', this.handleTouchEnd);
+
         // Get final bbox
         const canvasBbox = this.getCanvasBbox();
         const pdfBbox = this.canvasBboxToPdf(canvasBbox);
@@ -262,13 +281,24 @@ export class BBoxOverlay {
     }
 
     /**
-     * Get current canvas bbox from drawing coordinates
+     * Get current canvas bbox from drawing coordinates (clamped to canvas bounds)
      */
     private getCanvasBbox(): CanvasRect {
-        const x1 = Math.min(this.startX, this.currentX);
-        const y1 = Math.min(this.startY, this.currentY);
-        const x2 = Math.max(this.startX, this.currentX);
-        const y2 = Math.max(this.startY, this.currentY);
+        const rect = this.overlayCanvas.getBoundingClientRect();
+        const canvasWidth = rect.width;
+        const canvasHeight = rect.height;
+
+        // Get unclamped coordinates
+        let x1 = Math.min(this.startX, this.currentX);
+        let y1 = Math.min(this.startY, this.currentY);
+        let x2 = Math.max(this.startX, this.currentX);
+        let y2 = Math.max(this.startY, this.currentY);
+
+        // Clamp to canvas bounds
+        x1 = Math.max(0, Math.min(x1, canvasWidth));
+        y1 = Math.max(0, Math.min(y1, canvasHeight));
+        x2 = Math.max(0, Math.min(x2, canvasWidth));
+        y2 = Math.max(0, Math.min(y2, canvasHeight));
 
         return {
             x: x1,
