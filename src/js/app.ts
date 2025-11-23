@@ -36,6 +36,7 @@ let currentPDFFilename: string = 'document.pdf';  // Store original filename
 let currentPage: number = 1;
 let totalPages: number = 0;
 let pageBboxes: Map<number, PDFBBox> = new Map();  // page_num → {left, bottom, right, top}
+let clipHintTimeout: number | undefined;
 
 /**
  * Initialize the application
@@ -66,6 +67,7 @@ async function initialize() {
                     console.log('BBox selected:', pdfBbox);
                     pageBboxes.set(currentPage - 1, pdfBbox);
                     updateBboxDisplay(pdfBbox);
+                    autoEnableClipMode();
                 }
             }
         });
@@ -379,6 +381,30 @@ function renderBboxOverlay(): void {
         const bboxDisplay = document.getElementById('detected-bbox');
         if (bboxDisplay) {
             bboxDisplay.classList.add('hidden');
+        }
+    }
+}
+
+/**
+ * Automatically enable clip mode when the user defines a manual bbox
+ */
+function autoEnableClipMode(): void {
+    const clipCheckbox = document.getElementById('clip-content') as HTMLInputElement | null;
+    const clipHint = document.getElementById('clip-enabled-hint');
+
+    if (!clipCheckbox) return;
+
+    if (!clipCheckbox.checked) {
+        clipCheckbox.checked = true;
+        if (clipHint) {
+            clipHint.classList.remove('hidden');
+            clipHint.textContent = 'Clip content enabled to remove hidden text/images outside your crop.';
+            if (clipHintTimeout) {
+                window.clearTimeout(clipHintTimeout);
+            }
+            clipHintTimeout = window.setTimeout(() => {
+                clipHint?.classList.add('hidden');
+            }, 4000);
         }
     }
 }

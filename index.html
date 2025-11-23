@@ -221,10 +221,14 @@
                                     <input type="checkbox" id="shrink-to-content" class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
                                     <span class="text-sm text-gray-700">Shrink to content</span>
                                 </label>
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="clip-content" class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
-                                    <span class="text-sm text-gray-700">Clip content</span>
+                                <label class="flex items-start gap-3 cursor-pointer">
+                                    <input type="checkbox" id="clip-content" class="mt-1 w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500">
+                                    <div>
+                                        <span class="text-sm text-gray-700 font-medium">Clip content (remove hidden text)</span>
+                                        <span class="text-xs text-gray-500 block">Physically delete text and images outside your crop for privacy-sensitive documents.</span>
+                                    </div>
                                 </label>
+                                <p id="clip-enabled-hint" class="text-xs text-emerald-600 hidden">Clip content enabled to remove hidden text/images.</p>
                             </div>
                         </div>
 
