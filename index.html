@@ -7,23 +7,17 @@
     <meta name="keywords" content="PDF, crop, trim, margins, WebAssembly, WASM, browser, privacy">
     <title>pdfcrop - Crop PDFs in Your Browser</title>
 
-    <!-- Tailwind CSS (compiled by Trunk pre-build hook) -->
-    <link rel="stylesheet" href="/app.css">
-
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-    <!-- PDF.js (from CDN for Safari compatibility) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.mjs" type="module"></script>
-
     <!-- Favicon (optional - can be added later) -->
     <!-- <link rel="icon" type="image/svg+xml" href="/favicon.svg"> -->
 </head>
-<body class="min-h-screen flex flex-col">
+<body class="h-screen flex flex-col overflow-hidden">
     <!-- Header -->
-    <header class="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <header class="bg-white border-b border-gray-200 flex-shrink-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-16">
                 <!-- Logo/Title -->
@@ -46,7 +40,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 flex flex-col">
+    <main class="flex-1 flex flex-col overflow-hidden">
         <!-- Upload Section (shown when no PDF loaded) -->
         <div id="upload-section" class="flex-1 flex items-center justify-center p-8">
             <div class="max-w-2xl w-full">
@@ -88,10 +82,10 @@
         </div>
 
         <!-- Application Section (shown when PDF loaded) -->
-        <div id="app-section" class="hidden flex-1 flex">
-            <div class="flex-1 flex flex-col lg:flex-row">
+        <div id="app-section" class="hidden flex-1 flex overflow-hidden">
+            <div class="flex-1 flex flex-col lg:flex-row overflow-hidden">
                 <!-- Left Sidebar - Page Thumbnails -->
-                <aside class="w-full lg:w-64 bg-white border-r border-gray-200 overflow-y-auto scrollbar-thin">
+                <aside class="w-full lg:w-64 bg-white border-r border-gray-200 overflow-y-auto scrollbar-thin flex-shrink-0">
                     <div class="p-4">
                         <h3 class="text-sm font-semibold text-gray-700 mb-3">Pages</h3>
                         <div id="thumbnail-container" class="space-y-2">
@@ -101,23 +95,46 @@
                 </aside>
 
                 <!-- Center - PDF Viewer -->
-                <div class="flex-1 flex flex-col bg-gray-100">
+                <div class="flex-1 flex flex-col bg-gray-100 overflow-hidden">
                     <!-- Toolbar -->
-                    <div class="bg-white border-b border-gray-200 p-4 flex items-center justify-between gap-4">
-                        <div class="flex items-center gap-2">
-                            <button id="prev-page" class="btn-secondary btn-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
-                                </svg>
-                            </button>
-                            <span id="page-info" class="text-sm text-gray-700 font-medium">
-                                Page <span id="current-page">1</span> of <span id="total-pages">1</span>
-                            </span>
-                            <button id="next-page" class="btn-secondary btn-sm">
-                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                </svg>
-                            </button>
+                    <div class="bg-white border-b border-gray-200 p-4 flex items-center justify-between gap-4 flex-shrink-0">
+                        <div class="flex items-center gap-4">
+                            <!-- Page Navigation -->
+                            <div class="flex items-center gap-2">
+                                <button id="prev-page" class="btn-secondary btn-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                                    </svg>
+                                </button>
+                                <span id="page-info" class="text-sm text-gray-700 font-medium">
+                                    Page <span id="current-page">1</span> of <span id="total-pages">1</span>
+                                </span>
+                                <button id="next-page" class="btn-secondary btn-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Zoom Controls -->
+                            <div class="flex items-center gap-2 border-l border-gray-300 pl-4">
+                                <button id="zoom-out" class="btn-secondary btn-sm" title="Zoom Out">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM13 10H7"></path>
+                                    </svg>
+                                </button>
+                                <span id="zoom-level" class="text-sm text-gray-700 font-medium min-w-[4rem] text-center">100%</span>
+                                <button id="zoom-in" class="btn-secondary btn-sm" title="Zoom In">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v6m3-3H7"></path>
+                                    </svg>
+                                </button>
+                                <button id="zoom-fit" class="btn-secondary btn-sm" title="Fit to Page">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"></path>
+                                    </svg>
+                                </button>
+                            </div>
                         </div>
 
                         <div class="flex items-center gap-2">
@@ -247,7 +264,7 @@
     </main>
 
     <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-4">
+    <footer class="bg-white border-t border-gray-200 py-4 flex-shrink-0">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <p class="text-center text-sm text-gray-500">
                 Made with <a href="https://github.com/pdfcrop/pdfcrop" class="text-primary-600 hover:text-primary-700 font-medium" target="_blank">pdfcrop</a>
@@ -257,7 +274,7 @@
         </div>
     </footer>
 
-    <!-- JavaScript modules (loaded by Trunk) -->
-    <script type="module" src="/js/app.js"></script>
+    <!-- TypeScript entry point (loaded by Vite) -->
+    <script type="module" src="/src/js/app.ts"></script>
 </body>
 </html>

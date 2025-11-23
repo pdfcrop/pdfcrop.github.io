@@ -27,12 +27,6 @@ command_arguments = [
     "--minify"
 ]
 
-# Build configuration
-[clean]
-# Directories to clean on `trunk clean`
-dist = "dist"
-cargo = "target"
-
 # Watch configuration
 [watch]
 # Ignore these paths when watching for changes
